@@ -1,0 +1,23 @@
+{
+  "name": "nimmt6",
+  "version": "1.0.0",
+  "description": "Online multiplayer 6 Nimmt! card game",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "keywords": [
+    "6nimmt",
+    "card-game",
+    "multiplayer"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.4"
+  }
+}
