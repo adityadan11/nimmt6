@@ -619,39 +619,18 @@ body::before {
   line-height: 1;
 }
 
-/* Card styling inspired by PDF */
-.game-card { background: #ffffff; border: 2px solid rgba(0,0,0,0.1); border-radius: 12px; }
-.game-card::before, .game-card::after {
-  content: attr(data-num);
-  position: absolute;
-  font-family: 'Luckiest Guy', cursive;
-  font-size: 0.7rem;
-  color: #1e3a8a; /* Blue */
-  text-shadow: -1px -1px 0 #fbcfe8, 1px -1px 0 #fbcfe8, -1px 1px 0 #fbcfe8, 1px 1px 0 #fbcfe8; /* Pink outline */
+/* Exact Card Images from PDF */
+.game-card {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
 }
-.game-card::before { top: 4px; left: 4px; }
-.game-card::after { bottom: 4px; right: 4px; transform: rotate(180deg); }
-
-.game-card .card-number {
-  font-family: 'Luckiest Guy', cursive;
-  font-size: 2.2rem;
-  color: #000 !important; /* Default black, override below for special */
+.game-card::before, .game-card::after, .game-card .card-number, .game-card .card-bulls {
+  display: none !important; /* Hide any fallback text since the image has it all */
 }
-
-/* Backgrounds based on chilli count */
-.game-card[data-bulls="1"] { background: #ffffff; }
-.game-card[data-bulls="2"] { background: #fdf2f8; } /* Pinkish */
-.game-card[data-bulls="3"] { background: #fffbeb; } /* Yellowish */
-.game-card[data-bulls="5"] { background: #fef2f2; } /* Reddish */
-.game-card[data-bulls="7"] { background: #ef4444; } /* Solid red for 55 */
-
-.game-card[data-bulls="7"] .card-number { color: #000 !important; }
-
-.game-card[data-bulls="1"] .card-bulls { color: #ef4444; }
-.game-card[data-bulls="2"] .card-bulls { color: #ef4444; }
-.game-card[data-bulls="3"] .card-bulls { color: #ef4444; }
-.game-card[data-bulls="5"] .card-bulls { color: #ef4444; }
-.game-card[data-bulls="7"] .card-bulls { color: #ffffff; }
 
 /* Card placed animation */
 .game-card.card-enter {
