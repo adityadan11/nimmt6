@@ -117,6 +117,8 @@
     div.dataset.number = card.number;
     div.dataset.bulls = card.bullHeads;
     div.dataset.num = card.number;
+    div.style.backgroundImage = `url('img/cards/card-${card.number}.jpg')`;
+    div.setAttribute('aria-label', `Card ${card.number}, ${card.bullHeads} chilli${card.bullHeads > 1 ? 's' : ''}`);
 
     const numberSpan = document.createElement('span');
     numberSpan.className = 'card-number';

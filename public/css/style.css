@@ -621,12 +621,16 @@ body::before {
 
 /* Exact Card Images from PDF */
 .game-card {
-  background-size: cover;
+  background-color: #fff;
+  background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.1);
-  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+  aspect-ratio: 360 / 580;
+  height: auto !important;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.15);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.45);
+  overflow: hidden;
 }
 .game-card::before, .game-card::after, .game-card .card-number, .game-card .card-bulls {
   display: none !important; /* Hide any fallback text since the image has it all */
