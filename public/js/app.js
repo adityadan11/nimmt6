@@ -72,11 +72,24 @@
   // ════════════════════════════════
 
   function showScreen(name) {
-    Object.values(screens).forEach(s => s.classList.remove('active'));
-    screens[name].classList.add('active');
-    // Close overlays when switching screens
-    scoreboardOverlay.classList.remove('active');
-    gameoverOverlay.classList.remove('active');
+    const doSwitch = () => {
+      Object.values(screens).forEach(s => s.classList.remove('active'));
+      screens[name].classList.add('active');
+      // Close overlays when switching screens
+      scoreboardOverlay.classList.remove('active');
+      gameoverOverlay.classList.remove('active');
+    };
+
+    if (!document.startViewTransition) {
+      doSwitch();
+      return;
+    }
+
+    document.documentElement.classList.add('zoom-transition');
+    const transition = document.startViewTransition(doSwitch);
+    transition.finished.finally(() => {
+      document.documentElement.classList.remove('zoom-transition');
+    });
   }
 
   // ════════════════════════════════
