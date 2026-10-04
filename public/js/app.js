@@ -103,6 +103,7 @@
     div.className = `game-card ${extraClasses}`;
     div.dataset.number = card.number;
     div.dataset.bulls = card.bullHeads;
+    div.dataset.num = card.number;
 
     const numberSpan = document.createElement('span');
     numberSpan.className = 'card-number';
@@ -110,7 +111,7 @@
 
     const bullsSpan = document.createElement('span');
     bullsSpan.className = 'card-bulls';
-    bullsSpan.textContent = '🐂'.repeat(card.bullHeads);
+    bullsSpan.textContent = '🌶️'.repeat(card.bullHeads);
 
     div.appendChild(numberSpan);
     div.appendChild(bullsSpan);
@@ -154,7 +155,7 @@
       div.className = 'history-item';
       const d = new Date(g.date);
       div.innerHTML = `
-        <span class="winner">🏆 ${escapeHtml(g.winner)} (${g.winnerScore} 🐂)</span>
+        <span class="winner">🏆 ${escapeHtml(g.winner)} (${g.winnerScore} 🌶️)</span>
         <span class="date">${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       `;
       historyList.appendChild(div);
@@ -367,7 +368,7 @@
       tr.innerHTML = `
         <td>${i + 1}</td>
         <td>${escapeHtml(s.nickname)}${s.id === myPlayerId ? ' (You)' : ''}</td>
-        <td>${s.totalPenalty} 🐂</td>
+        <td>${s.totalPenalty} 🌶️</td>
       `;
       scoreTableBody.appendChild(tr);
     });
@@ -526,8 +527,8 @@
     renderRows(data.rows);
     const isMe = data.playerId === myPlayerId;
     const msg = isMe
-      ? `You took Row ${data.rowIndex + 1}! (+${data.penalty} 🐂)`
-      : `${data.nickname} took Row ${data.rowIndex + 1}! (+${data.penalty} 🐂)`;
+      ? `You took Row ${data.rowIndex + 1}! (+${data.penalty} 🌶️)`
+      : `${data.nickname} took Row ${data.rowIndex + 1}! (+${data.penalty} 🌶️)`;
     showToast(msg, isMe ? 'error' : 'info');
 
     // Update scores in gameState
@@ -540,7 +541,7 @@
     if (isMe) {
       const flash = document.createElement('div');
       flash.className = 'penalty-flash';
-      flash.textContent = `+${data.penalty} 🐂`;
+      flash.textContent = `+${data.penalty} 🌶️`;
       document.body.appendChild(flash);
       setTimeout(() => flash.remove(), 1500);
     }
@@ -598,7 +599,7 @@
   // ── Game Over ──
   socket.on('game-over', (data) => {
     const sorted = [...data.scores].sort((a, b) => a.totalPenalty - b.totalPenalty);
-    winnerName.textContent = `🎉 ${sorted[0].nickname} wins with ${sorted[0].totalPenalty} 🐂!`;
+    winnerName.textContent = `🎉 ${sorted[0].nickname} wins with ${sorted[0].totalPenalty} 🌶️!`;
 
     gameoverScoresBody.innerHTML = '';
     sorted.forEach((s, i) => {
@@ -608,7 +609,7 @@
       tr.innerHTML = `
         <td>${medal}</td>
         <td>${escapeHtml(s.nickname)}${s.id === myPlayerId ? ' (You)' : ''}</td>
-        <td>${s.totalPenalty} 🐂</td>
+        <td>${s.totalPenalty} 🌶️</td>
       `;
       gameoverScoresBody.appendChild(tr);
     });

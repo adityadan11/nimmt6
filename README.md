@@ -1,4 +1,4 @@
-# 🐂 6 Nimmt! — Online Multiplayer
+# 🌶️ 6 Nimmt! — Online Multiplayer
 
 A real-time multiplayer version of the card game 6 Nimmt!, built with Node.js, Express and Socket.IO.
 
