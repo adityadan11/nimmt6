@@ -80,7 +80,11 @@
   <div class="screen game-screen" id="screen-game">
     <!-- Top bar -->
     <div class="game-topbar">
-      <div class="round-info">Round <span id="round-number">1</span> / <span id="total-rounds">10</span></div>
+      <div class="round-info">
+        Round <span id="round-number">1</span> / <span id="max-rounds">10</span>
+        <span class="round-info-sep">•</span>
+        Turn <span id="turn-number">1</span> / <span id="total-turns">10</span>
+      </div>
       <div class="players-status" id="players-status"></div>
       <div style="display: flex; gap: 0.5rem; align-items: center;">
         <div class="room-code-small" id="game-room-code">-----</div>
@@ -132,40 +136,41 @@
 
   <!-- ═══ SCOREBOARD OVERLAY ═══ -->
   <div class="scoreboard-overlay" id="scoreboard-overlay">
-    <div class="scoreboard-panel">
+    <div class="scoreboard-panel wide">
       <h2>📊 Scoreboard</h2>
-      <table class="score-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Player</th>
-            <th>Penalty 🌶️</th>
-          </tr>
-        </thead>
-        <tbody id="score-table-body"></tbody>
-      </table>
+      <p class="panel-subtitle" id="scoreboard-subtitle">Round 1 of 10</p>
+      <div class="round-table-wrap" id="scoreboard-table-wrap"></div>
       <div style="margin-top: 1.5rem; text-align: center;">
         <button class="btn btn-secondary btn-small" id="btn-close-scoreboard">Close</button>
       </div>
     </div>
   </div>
 
+  <!-- ═══ ROUND END OVERLAY ═══ -->
+  <div class="gameover-overlay roundend-overlay" id="roundend-overlay">
+    <div class="gameover-panel wide">
+      <div class="round-progress" id="roundend-progress" aria-hidden="true"></div>
+      <h2 id="roundend-title">Round 1 Complete!</h2>
+      <div class="round-winner" id="roundend-winner">-</div>
+      <div class="round-table-wrap" id="roundend-table-wrap"></div>
+      <div class="btn-group" id="roundend-host-actions">
+        <button class="btn btn-primary btn-small" id="btn-next-round">▶ Next Round</button>
+        <button class="btn btn-secondary btn-small" id="btn-finish-match">🏁 Finish Match</button>
+      </div>
+      <div class="waiting-text" id="roundend-waiting">
+        Waiting for host to start the next round<span class="dots">...</span>
+      </div>
+    </div>
+  </div>
+
   <!-- ═══ GAME OVER OVERLAY ═══ -->
   <div class="gameover-overlay" id="gameover-overlay">
-    <div class="gameover-panel">
-      <h2>🏆 Game Over!</h2>
+    <div class="gameover-panel wide">
+      <h2>🏆 Match Over!</h2>
+      <p class="panel-subtitle" id="gameover-subtitle">After 10 rounds</p>
       <div class="winner-name" id="winner-name">-</div>
       <div class="gameover-scores">
-        <table class="score-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Player</th>
-              <th>Total 🌶️</th>
-            </tr>
-          </thead>
-          <tbody id="gameover-scores-body"></tbody>
-        </table>
+        <div class="round-table-wrap" id="gameover-table-wrap"></div>
       </div>
       <div class="btn-group">
         <button class="btn btn-primary btn-small" id="btn-play-again">Play Again</button>

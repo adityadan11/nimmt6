@@ -41,7 +41,9 @@
 
   // Game
   const roundNumber = $('#round-number');
-  const totalRounds = $('#total-rounds');
+  const maxRoundsEl = $('#max-rounds');
+  const turnNumber = $('#turn-number');
+  const totalTurns = $('#total-turns');
   const playersStatus = $('#players-status');
   const gameRoomCode = $('#game-room-code');
   const statusArea = $('#status-area');
@@ -55,11 +57,22 @@
 
   // Overlays
   const scoreboardOverlay = $('#scoreboard-overlay');
-  const scoreTableBody = $('#score-table-body');
+  const scoreboardSubtitle = $('#scoreboard-subtitle');
+  const scoreboardTableWrap = $('#scoreboard-table-wrap');
   const btnCloseScoreboard = $('#btn-close-scoreboard');
+  const roundendOverlay = $('#roundend-overlay');
+  const roundendProgress = $('#roundend-progress');
+  const roundendTitle = $('#roundend-title');
+  const roundendWinner = $('#roundend-winner');
+  const roundendTableWrap = $('#roundend-table-wrap');
+  const roundendHostActions = $('#roundend-host-actions');
+  const roundendWaiting = $('#roundend-waiting');
+  const btnNextRound = $('#btn-next-round');
+  const btnFinishMatch = $('#btn-finish-match');
   const gameoverOverlay = $('#gameover-overlay');
+  const gameoverSubtitle = $('#gameover-subtitle');
   const winnerName = $('#winner-name');
-  const gameoverScoresBody = $('#gameover-scores-body');
+  const gameoverTableWrap = $('#gameover-table-wrap');
   const btnPlayAgain = $('#btn-play-again');
   const btnBackToLobby = $('#btn-back-to-lobby');
 
@@ -77,6 +90,7 @@
       screens[name].classList.add('active');
       // Close overlays when switching screens
       scoreboardOverlay.classList.remove('active');
+      roundendOverlay.classList.remove('active');
       gameoverOverlay.classList.remove('active');
     };
 
@@ -372,25 +386,111 @@
     });
   }
 
-  // ── Scoreboard ──
+  // ── Round-by-round score table ──
 
-  function renderScoreboard(scores) {
-    const sorted = [...scores].sort((a, b) => a.totalPenalty - b.totalPenalty);
-    scoreTableBody.innerHTML = '';
+  // Builds a table: rank | player | R1..R{maxRounds} | total.
+  // `liveRound` (optional) is the round currently being played; its column
+  // shows the in-progress penalty for each player.
+  function buildRoundTable(scores, { maxRounds = 10, liveRound = null } = {}) {
+    const completed = Math.max(0, ...scores.map(s => (s.roundScores || []).length));
+    const totalOf = (s) => s.totalPenalty;
+    const sorted = [...scores].sort((a, b) => totalOf(a) - totalOf(b));
+    const bestTotal = sorted.length ? totalOf(sorted[0]) : 0;
+
+    // Lowest penalty in each completed round (to highlight)
+    const bestPerRound = [];
+    for (let r = 0; r < completed; r++) {
+      bestPerRound[r] = Math.min(...scores.map(s => (s.roundScores || [])[r] ?? Infinity));
+    }
+
+    const table = document.createElement('table');
+    table.className = 'round-table';
+
+    // Header
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headRow.innerHTML = '<th class="col-rank">#</th><th class="col-player">Player</th>';
+    for (let r = 1; r <= maxRounds; r++) {
+      const th = document.createElement('th');
+      th.className = 'col-round';
+      if (r === liveRound) th.classList.add('current');
+      else if (r > completed) th.classList.add('future');
+      th.textContent = `R${r}`;
+      th.title = `Round ${r}`;
+      headRow.appendChild(th);
+    }
+    headRow.insertAdjacentHTML('beforeend', '<th class="col-total">Total 🌶️</th>');
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    // Body
+    const tbody = document.createElement('tbody');
+    let rank = 0;
+    let prevTotal = null;
     sorted.forEach((s, i) => {
+      if (totalOf(s) !== prevTotal) rank = i + 1; // ties share a rank
+      prevTotal = totalOf(s);
+
       const tr = document.createElement('tr');
-      if (i === 0) tr.className = 'leader';
+      if (totalOf(s) === bestTotal) tr.classList.add('leader');
+      if (s.id === myPlayerId) tr.classList.add('me');
+      tr.style.animationDelay = `${i * 60}ms`;
+
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
       tr.innerHTML = `
-        <td>${i + 1}</td>
-        <td>${escapeHtml(s.nickname)}${s.id === myPlayerId ? ' (You)' : ''}</td>
-        <td>${s.totalPenalty} 🌶️</td>
+        <td class="col-rank">${medal}</td>
+        <td class="col-player" title="${escapeHtml(s.nickname)}">${escapeHtml(s.nickname)}${s.id === myPlayerId ? ' <span class="you-tag">You</span>' : ''}</td>
       `;
-      scoreTableBody.appendChild(tr);
+
+      for (let r = 1; r <= maxRounds; r++) {
+        const td = document.createElement('td');
+        td.className = 'col-round';
+        const val = (s.roundScores || [])[r - 1];
+        if (val !== undefined) {
+          td.textContent = val;
+          if (val === bestPerRound[r - 1]) td.classList.add('best');
+        } else if (r === liveRound) {
+          td.classList.add('current');
+          td.textContent = s.penalty || 0;
+        } else {
+          td.classList.add('future');
+          td.textContent = '–';
+        }
+        tr.appendChild(td);
+      }
+
+      const totalTd = document.createElement('td');
+      totalTd.className = 'col-total';
+      totalTd.textContent = totalOf(s);
+      tr.appendChild(totalTd);
+
+      tbody.appendChild(tr);
     });
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function renderInto(wrap, table) {
+    wrap.innerHTML = '';
+    wrap.appendChild(table);
+  }
+
+  // ── Scoreboard (live, during play) ──
+
+  function renderScoreboard() {
+    if (!gameState) return;
+    const inProgress = gameState.state !== 'ROUND_END' && gameState.state !== 'GAME_OVER';
+    scoreboardSubtitle.textContent = inProgress
+      ? `Round ${gameState.round} of ${gameState.maxRounds} • in progress`
+      : `Round ${gameState.round} of ${gameState.maxRounds} • complete`;
+    renderInto(scoreboardTableWrap, buildRoundTable(gameState.scores, {
+      maxRounds: gameState.maxRounds,
+      liveRound: inProgress ? gameState.round : null,
+    }));
   }
 
   btnScoreboard.addEventListener('click', () => {
-    if (gameState) renderScoreboard(gameState.scores);
+    renderScoreboard();
     scoreboardOverlay.classList.add('active');
   });
 
@@ -400,6 +500,36 @@
 
   scoreboardOverlay.addEventListener('click', (e) => {
     if (e.target === scoreboardOverlay) scoreboardOverlay.classList.remove('active');
+  });
+
+  // ── Round End ──
+
+  function renderRoundProgress(round, maxRounds) {
+    roundendProgress.innerHTML = '';
+    for (let r = 1; r <= maxRounds; r++) {
+      const pip = document.createElement('span');
+      pip.className = 'pip' + (r < round ? ' done' : r === round ? ' just-done' : '');
+      roundendProgress.appendChild(pip);
+    }
+  }
+
+  function updateRoundEndActions() {
+    roundendHostActions.style.display = isHost ? 'flex' : 'none';
+    roundendWaiting.style.display = isHost ? 'none' : 'block';
+  }
+
+  btnNextRound.addEventListener('click', () => {
+    if (!isHost) return;
+    btnNextRound.disabled = true;
+    socket.emit('next-round');
+    setTimeout(() => { btnNextRound.disabled = false; }, 1500);
+  });
+
+  btnFinishMatch.addEventListener('click', () => {
+    if (!isHost) return;
+    if (confirm('End the match now? Final scores will be based on the rounds played so far.')) {
+      socket.emit('finish-match');
+    }
   });
 
   // ── Game Over ──
@@ -419,6 +549,23 @@
       showToast('Only the host can return to lobby', 'info');
     }
   });
+
+  // Shared setup when a new round's cards are dealt
+  function startRound(state) {
+    gameState = state;
+    gameRoomCode.textContent = currentRoom;
+    roundNumber.textContent = state.round;
+    maxRoundsEl.textContent = state.maxRounds;
+    turnNumber.textContent = state.turn;
+    totalTurns.textContent = state.totalTurns;
+    renderRows(state.rows);
+    renderHand(state.hand);
+    renderPlayersStatus(state.players);
+    setSelectingState();
+    roundendOverlay.classList.remove('active');
+    gameoverOverlay.classList.remove('active');
+    scoreboardOverlay.classList.remove('active');
+  }
 
   // ════════════════════════════════
   // SOCKET EVENT HANDLERS
@@ -461,22 +608,21 @@
   socket.on('player-left', (data) => {
     isHost = (data.hostId === myPlayerId);
     renderLobbyPlayers(data.players, data.hostId);
+    if (roundendOverlay.classList.contains('active')) updateRoundEndActions();
     showToast('A player left', 'info');
   });
 
-  // ── Game Started ──
+  // ── Game Started (new match) ──
   socket.on('game-started', (state) => {
-    gameState = state;
-    gameRoomCode.textContent = currentRoom;
-    roundNumber.textContent = state.round;
-    totalRounds.textContent = state.totalRounds;
-    renderRows(state.rows);
-    renderHand(state.hand);
-    renderPlayersStatus(state.players);
-    setSelectingState();
+    startRound(state);
     showScreen('game');
-    gameoverOverlay.classList.remove('active');
-    showToast('Game started! Pick a card', 'success');
+    showToast(`Match started! Round 1 of ${state.maxRounds}`, 'success');
+  });
+
+  // ── Next Round Started ──
+  socket.on('round-started', (state) => {
+    startRound(state);
+    showToast(`Round ${state.round} of ${state.maxRounds} — pick a card!`, 'success');
   });
 
   // ── Card Confirmed ──
@@ -549,7 +695,10 @@
     // Update scores in gameState
     if (gameState) {
       const p = gameState.scores.find(s => s.id === data.playerId);
-      if (p) p.totalPenalty = data.totalPenalty;
+      if (p) {
+        p.totalPenalty = data.totalPenalty;
+        p.penalty = data.roundPenalty;
+      }
     }
 
     // Penalty flash for self
@@ -593,8 +742,9 @@
   socket.on('turn-end', (data) => {
     if (gameState) {
       gameState.scores = data.scores;
+      gameState.turn = data.turn;
     }
-    roundNumber.textContent = data.round;
+    turnNumber.textContent = data.turn;
     revealArea.style.display = 'none';
     revealArea.innerHTML = '';
   });
@@ -611,23 +761,69 @@
     setSelectingState();
   });
 
-  // ── Game Over ──
-  socket.on('game-over', (data) => {
-    const sorted = [...data.scores].sort((a, b) => a.totalPenalty - b.totalPenalty);
-    winnerName.textContent = `🎉 ${sorted[0].nickname} wins with ${sorted[0].totalPenalty} 🌶️!`;
+  // Clears the board UI once all cards of a round have been played
+  function clearAfterRound(message) {
+    revealArea.style.display = 'none';
+    revealArea.innerHTML = '';
+    confirmArea.style.display = 'none';
+    renderHand([]);
+    statusText.textContent = message;
+    statusText.className = 'status-text highlight';
+    scoreboardOverlay.classList.remove('active');
+  }
 
-    gameoverScoresBody.innerHTML = '';
-    sorted.forEach((s, i) => {
-      const tr = document.createElement('tr');
-      if (i === 0) tr.className = 'leader';
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
-      tr.innerHTML = `
-        <td>${medal}</td>
-        <td>${escapeHtml(s.nickname)}${s.id === myPlayerId ? ' (You)' : ''}</td>
-        <td>${s.totalPenalty} 🌶️</td>
-      `;
-      gameoverScoresBody.appendChild(tr);
-    });
+  // ── Round End (more rounds to go) ──
+  socket.on('round-end', (data) => {
+    if (gameState) {
+      gameState.scores = data.scores;
+      gameState.state = 'ROUND_END';
+      gameState.round = data.round;
+      gameState.maxRounds = data.maxRounds;
+    }
+    clearAfterRound(`Round ${data.round} complete!`);
+
+    // Who took the fewest chillis this round?
+    const thisRound = data.scores.map(s => ({ ...s, r: s.roundScores[data.round - 1] }));
+    const best = Math.min(...thisRound.map(s => s.r));
+    const roundWinners = thisRound.filter(s => s.r === best)
+      .map(s => (s.id === myPlayerId ? 'You' : s.nickname));
+    roundendWinner.textContent = `⭐ Best this round: ${roundWinners.join(', ')} (${best} 🌶️)`;
+
+    roundendTitle.textContent = `Round ${data.round} of ${data.maxRounds} Complete!`;
+    renderRoundProgress(data.round, data.maxRounds);
+    renderInto(roundendTableWrap, buildRoundTable(data.scores, { maxRounds: data.maxRounds }));
+
+    const remaining = data.maxRounds - data.round;
+    btnNextRound.textContent = `▶ Next Round (${data.round + 1}/${data.maxRounds})`;
+    btnNextRound.title = `${remaining} round${remaining === 1 ? '' : 's'} left`;
+    btnNextRound.disabled = false;
+    updateRoundEndActions();
+
+    roundendOverlay.classList.add('active');
+  });
+
+  // ── Game Over (match finished) ──
+  socket.on('game-over', (data) => {
+    if (gameState) {
+      gameState.scores = data.scores;
+      gameState.state = 'GAME_OVER';
+    }
+    clearAfterRound('Match over!');
+    roundendOverlay.classList.remove('active');
+
+    const sorted = [...data.scores].sort((a, b) => a.totalPenalty - b.totalPenalty);
+    const best = sorted[0].totalPenalty;
+    const winners = sorted.filter(s => s.totalPenalty === best).map(s => s.nickname);
+    winnerName.textContent = winners.length > 1
+      ? `🤝 Tie: ${winners.join(' & ')} with ${best} 🌶️!`
+      : `🎉 ${winners[0]} wins with ${best} 🌶️!`;
+
+    const played = data.round;
+    gameoverSubtitle.textContent = played < data.maxRounds
+      ? `Finished early after ${played} of ${data.maxRounds} rounds`
+      : `After all ${played} rounds`;
+
+    renderInto(gameoverTableWrap, buildRoundTable(data.scores, { maxRounds: data.maxRounds }));
 
     gameoverOverlay.classList.add('active');
 
@@ -647,6 +843,7 @@
   // ── Returned to Lobby ──
   socket.on('returned-to-lobby', (roomState) => {
     gameoverOverlay.classList.remove('active');
+    roundendOverlay.classList.remove('active');
     renderLobbyPlayers(roomState.players, roomState.hostId);
     lobbyRoomCode.textContent = roomState.code;
     isHost = (roomState.hostId === myPlayerId);

@@ -26,4 +26,5 @@ Then open http://localhost:3000.
 2. Send your friends the 5-letter room code.
 3. Once 2–10 players have joined, the host clicks **Start Game**.
 4. Every turn, each player picks a card at the same time. Cards are placed in ascending order, and whoever plays the 6th card in a row takes that row's bull heads.
-5. After 10 rounds, the player with the fewest bull heads wins.
+5. A round ends when all 10 cards have been played. The scoreboard then shows each player's penalty for every round, and the host can click **Next Round** (up to 10 rounds) or **Finish Match**.
+6. When the match ends, the player with the fewest bull heads in total wins.

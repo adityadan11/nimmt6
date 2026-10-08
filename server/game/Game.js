@@ -12,27 +12,30 @@ const STATES = {
 };
 
 class Game {
-  constructor(players) {
+  constructor(players, { maxRounds = 10 } = {}) {
     // players: [{ id, nickname }]
     this.players = players.map(p => ({
       id: p.id,
       nickname: p.nickname,
       hand: [],
-      penalty: 0,
-      totalPenalty: 0,
+      penalty: 0,        // penalty in the current round
+      totalPenalty: 0,   // penalty across all rounds of the match
+      roundScores: [],   // penalty of each completed round
       hasPlayed: false,
       selectedCard: null,
     }));
     this.rows = [[], [], [], []]; // 4 rows
     this.state = STATES.DEALING;
-    this.round = 0;
-    this.totalRounds = 10;
+    this.turn = 0;          // turn index within the current round (0-based)
+    this.totalTurns = 10;   // one turn per card in hand
+    this.round = 0;         // current round number (1-based once dealt)
+    this.maxRounds = maxRounds;
     this.pendingPlays = []; // cards played this turn, sorted
     this.currentResolveIndex = 0;
     this.waitingForChoice = null; // playerId waiting to choose a row
   }
 
-  // Deal 10 cards to each player and set up 4 starting rows
+  // Deal 10 cards to each player and set up 4 starting rows (starts a new round)
   deal() {
     const deck = shuffleDeck(createDeck());
     let idx = 0;
@@ -54,11 +57,27 @@ class Game {
     // Sort rows by starting card number for cleaner display
     this.rows.sort((a, b) => a[0].number - b[0].number);
 
-    this.round = 0;
+    this.round++;
+    this.turn = 0;
     this.state = STATES.SELECTING;
     this.pendingPlays = [];
     this.currentResolveIndex = 0;
     this.waitingForChoice = null;
+  }
+
+  // Start the next round of the match (keeps cumulative scores)
+  nextRound() {
+    if (this.state !== STATES.ROUND_END) return { error: 'Round is not finished yet' };
+    if (this.round >= this.maxRounds) return { error: 'Maximum number of rounds reached' };
+    this.deal();
+    return { success: true };
+  }
+
+  // End the match early after a completed round
+  finishMatch() {
+    if (this.state !== STATES.ROUND_END) return { error: 'Round is not finished yet' };
+    this.state = STATES.GAME_OVER;
+    return this._gameOverPayload();
   }
 
   // Get a player's current state (private hand + public info)
@@ -67,8 +86,10 @@ class Game {
     return {
       hand: player ? player.hand.map(c => c.toJSON()) : [],
       rows: this.rows.map(row => row.map(c => c.toJSON())),
-      round: this.round + 1,
-      totalRounds: this.totalRounds,
+      turn: this.turn + 1,
+      totalTurns: this.totalTurns,
+      round: this.round,
+      maxRounds: this.maxRounds,
       state: this.state,
       scores: this.getScores(),
       players: this.players.map(p => ({
@@ -87,6 +108,7 @@ class Game {
       nickname: p.nickname,
       penalty: p.penalty,
       totalPenalty: p.totalPenalty,
+      roundScores: [...p.roundScores],
     }));
   }
 
@@ -217,6 +239,7 @@ class Game {
       rowIndex,
       takenCards: takenCards.map(c => c.toJSON()),
       penalty,
+      roundPenalty: player.penalty,
       totalPenalty: player.totalPenalty,
       rows: this.rows.map(r => r.map(c => c.toJSON())),
     };
@@ -224,7 +247,7 @@ class Game {
 
   // Internal: end the current turn
   _endTurn() {
-    this.round++;
+    this.turn++;
 
     // Reset for next turn
     for (const player of this.players) {
@@ -234,10 +257,22 @@ class Game {
     this.pendingPlays = [];
     this.currentResolveIndex = 0;
 
-    if (this.round >= this.totalRounds) {
-      this.state = STATES.GAME_OVER;
+    if (this.turn >= this.totalTurns) {
+      // All 10 cards played — the round is over. Record each player's round score.
+      for (const player of this.players) {
+        player.roundScores.push(player.penalty);
+      }
+
+      if (this.round >= this.maxRounds) {
+        this.state = STATES.GAME_OVER;
+        return this._gameOverPayload();
+      }
+
+      this.state = STATES.ROUND_END;
       return {
-        type: 'game-over',
+        type: 'round-end',
+        round: this.round,
+        maxRounds: this.maxRounds,
         scores: this.getScores(),
       };
     }
@@ -245,7 +280,16 @@ class Game {
     this.state = STATES.SELECTING;
     return {
       type: 'turn-end',
-      round: this.round + 1,
+      turn: this.turn + 1,
+      scores: this.getScores(),
+    };
+  }
+
+  _gameOverPayload() {
+    return {
+      type: 'game-over',
+      round: this.round,
+      maxRounds: this.maxRounds,
       scores: this.getScores(),
     };
   }

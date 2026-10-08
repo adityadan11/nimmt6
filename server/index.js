@@ -149,6 +149,36 @@ io.on('connection', (socket) => {
     console.log(`[GAME] Restarted in room ${room.code}`);
   });
 
+  // ── NEXT ROUND ──
+  socket.on('next-round', () => {
+    const room = gm.getRoomByPlayer(socket.id);
+    if (!room || !room.game) return socket.emit('error-msg', { message: 'No active game' });
+    if (room.hostId !== socket.id) return socket.emit('error-msg', { message: 'Only host can start the next round' });
+
+    const result = room.game.nextRound();
+    if (result.error) return socket.emit('error-msg', { message: result.error });
+
+    for (const player of room.players) {
+      const state = room.game.getPlayerState(player.id);
+      io.to(player.id).emit('round-started', state);
+    }
+
+    console.log(`[GAME] Round ${room.game.round} started in room ${room.code}`);
+  });
+
+  // ── FINISH MATCH EARLY ──
+  socket.on('finish-match', () => {
+    const room = gm.getRoomByPlayer(socket.id);
+    if (!room || !room.game) return socket.emit('error-msg', { message: 'No active game' });
+    if (room.hostId !== socket.id) return socket.emit('error-msg', { message: 'Only host can finish the match' });
+
+    const result = room.game.finishMatch();
+    if (result.error) return socket.emit('error-msg', { message: result.error });
+
+    io.to(room.code).emit('game-over', result);
+    console.log(`[GAME] Match finished early in room ${room.code}`);
+  });
+
   // ── BACK TO LOBBY ──
   socket.on('back-to-lobby', () => {
     const room = gm.getRoomByPlayer(socket.id);
@@ -211,6 +241,11 @@ function resolveNextCard(room) {
       const state = room.game.getPlayerState(player.id);
       io.to(player.id).emit('hand-update', { hand: state.hand });
     }
+    return;
+  }
+
+  if (result.type === 'round-end') {
+    io.to(room.code).emit('round-end', result);
     return;
   }
 
