@@ -192,7 +192,7 @@ class Game {
     const play = this.pendingPlays[this.currentResolveIndex];
     this.waitingForChoice = null;
 
-    return this._takeRowAndPlace(play, rowIndex);
+    return this._takeRowAndPlace(play, rowIndex, 'LOWER_THAN_ALL');
   }
 
   // Internal: place a card on a row
@@ -201,7 +201,7 @@ class Game {
 
     if (row.length >= 5) {
       // 6th card — player takes the row
-      return this._takeRowAndPlace(play, rowIndex);
+      return this._takeRowAndPlace(play, rowIndex, 'SIXTH_CARD');
     }
 
     // Add card to row
@@ -219,7 +219,7 @@ class Game {
   }
 
   // Internal: take a row, add penalty, start row with new card
-  _takeRowAndPlace(play, rowIndex) {
+  _takeRowAndPlace(play, rowIndex, reason) {
     const takenCards = [...this.rows[rowIndex]];
     const penalty = takenCards.reduce((sum, c) => sum + c.bullHeads, 0);
 
@@ -239,6 +239,7 @@ class Game {
       rowIndex,
       takenCards: takenCards.map(c => c.toJSON()),
       penalty,
+      reason, // 'SIXTH_CARD' or 'LOWER_THAN_ALL'
       roundPenalty: player.penalty,
       totalPenalty: player.totalPenalty,
       rows: this.rows.map(r => r.map(c => c.toJSON())),

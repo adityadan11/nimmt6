@@ -15,6 +15,30 @@
   let choosingRow = false;
   let gameState = null;
 
+  // ── Animation & Pacing ──
+  let speedMultiplier = parseFloat(localStorage.getItem('nimmt6_speed') || '1');
+  let animationQueue = [];
+  let isAnimating = false;
+
+  const TIMING = {
+    REVEAL_DELAY: 800,
+    MOVE_DURATION: 600,
+    PICKUP_POPUP_DURATION: 2500,
+    BETWEEN_CARDS_DELAY: 800,
+  };
+
+  const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms * speedMultiplier));
+
+  // ── Event Log ──
+  function logEvent(msg) {
+    const content = $('#event-log-content');
+    const item = document.createElement('div');
+    item.className = 'event-log-item';
+    item.textContent = msg;
+    content.prepend(item);
+  }
+
+
   // ── DOM References ──
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
@@ -243,6 +267,16 @@
   // Show history on load
   renderHistory();
 
+  // Speed Control
+  const speedSelect = $('#game-speed-select');
+  if (speedSelect) {
+    speedSelect.value = speedMultiplier.toString();
+    speedSelect.addEventListener('change', (e) => {
+      speedMultiplier = parseFloat(e.target.value);
+      localStorage.setItem('nimmt6_speed', e.target.value);
+    });
+  }
+
   // ════════════════════════════════
   // LOBBY SCREEN
   // ════════════════════════════════
@@ -373,6 +407,10 @@
     revealArea.style.display = 'none';
     statusText.textContent = 'Select a card to play';
     statusText.className = 'status-text';
+    
+    // Clear dims
+    tableArea.classList.remove('dimmed');
+    $$('.table-row').forEach(r => r.classList.remove('highlight-choice'));
 
     // Re-enable hand cards
     $$('.hand-cards .game-card').forEach(c => {
@@ -565,6 +603,7 @@
     roundendOverlay.classList.remove('active');
     gameoverOverlay.classList.remove('active');
     scoreboardOverlay.classList.remove('active');
+    $('#event-log-content').innerHTML = ''; // clear log on new round
   }
 
   // ════════════════════════════════
@@ -661,6 +700,7 @@
     plays.forEach((play, i) => {
       const item = document.createElement('div');
       item.className = 'reveal-item';
+      // If we respect prefers-reduced-motion, animationDelay could be 0, but for now just use constant delays
       item.style.animationDelay = `${i * 150}ms`;
 
       const cardEl = createCardElement(play.card, 'revealed');
@@ -676,78 +716,125 @@
     });
   });
 
-  // ── Card Placed on Row ──
-  socket.on('card-placed', (data) => {
-    renderRows(data.rows);
-    // Brief highlight on reveal area
-    showToast(`${data.nickname} → Row ${data.rowIndex + 1}`, 'info');
+  // ── Resolution Sequence ──
+  socket.on('resolution-sequence', ({ events }) => {
+    animationQueue.push(...events);
+    processQueue();
   });
 
-  // ── Row Taken ──
-  socket.on('row-taken', (data) => {
-    renderRows(data.rows);
-    const isMe = data.playerId === myPlayerId;
-    const msg = isMe
-      ? `You took Row ${data.rowIndex + 1}! (+${data.penalty} 🌶️)`
-      : `${data.nickname} took Row ${data.rowIndex + 1}! (+${data.penalty} 🌶️)`;
-    showToast(msg, isMe ? 'error' : 'info');
+  async function processQueue() {
+    if (isAnimating || animationQueue.length === 0) return;
+    isAnimating = true;
 
-    // Update scores in gameState
-    if (gameState) {
-      const p = gameState.scores.find(s => s.id === data.playerId);
-      if (p) {
-        p.totalPenalty = data.totalPenalty;
-        p.penalty = data.roundPenalty;
+    while (animationQueue.length > 0) {
+      const event = animationQueue.shift();
+      await playEventAnimation(event);
+      // Brief pause between events for readability
+      await delay(TIMING.BETWEEN_CARDS_DELAY);
+    }
+
+    isAnimating = false;
+  }
+
+  async function playEventAnimation(data) {
+    if (data.type === 'card-placed') {
+      renderRows(data.rows);
+      const isMe = data.playerId === myPlayerId;
+      const name = isMe ? 'You' : data.nickname;
+      showToast(`${name} → Row ${data.rowIndex + 1}`, 'info');
+      logEvent(`${name} played ${data.card.number} in Row ${data.rowIndex + 1}`);
+      await delay(TIMING.MOVE_DURATION);
+    }
+    else if (data.type === 'row-taken') {
+      const isMe = data.playerId === myPlayerId;
+      const name = isMe ? 'You' : data.nickname;
+      
+      const reasonText = data.reason === 'SIXTH_CARD' 
+        ? `${name} played ${data.card.number} as the 6th card.`
+        : `${name}'s card ${data.card.number} was lower than all rows, and picked Row ${data.rowIndex + 1}.`;
+
+      logEvent(`🚨 ${name} took Row ${data.rowIndex + 1} (${data.penalty} 🌶️). ${reasonText}`);
+
+      // Highlight the row
+      const rowEl = $(`#row-${data.rowIndex}`).closest('.table-row');
+      rowEl.classList.add('highlight-danger');
+
+      // Show Popup
+      const popup = $('#row-taken-popup');
+      $('#popup-header').textContent = `${name} took Row ${data.rowIndex + 1}!`;
+      $('#popup-reason').textContent = reasonText;
+      $('#popup-penalty').textContent = `+${data.penalty} 🌶️`;
+      popup.classList.add('active');
+
+      // Update scores in gameState
+      if (gameState) {
+        const p = gameState.scores.find(s => s.id === data.playerId);
+        if (p) {
+          p.totalPenalty = data.totalPenalty;
+          p.penalty = data.roundPenalty;
+        }
+      }
+
+      // Penalty flash for self
+      if (isMe) {
+        const flash = document.createElement('div');
+        flash.className = 'penalty-flash';
+        flash.textContent = `+${data.penalty} 🌶️`;
+        document.body.appendChild(flash);
+        setTimeout(() => flash.remove(), 1500);
+      }
+
+      await delay(TIMING.PICKUP_POPUP_DURATION);
+
+      popup.classList.remove('active');
+      rowEl.classList.remove('highlight-danger');
+      renderRows(data.rows);
+    }
+    else if (data.type === 'choose-row') {
+      if (data.playerId === myPlayerId) {
+        choosingRow = true;
+        statusText.textContent = `Your card ${data.card.number} is lower than all rows. Choose a row to take!`;
+        statusText.className = 'status-text highlight';
+        
+        // Highlight rows
+        $$('.table-row').forEach((rowEl) => {
+          rowEl.classList.add('selectable', 'highlight-choice');
+          rowEl.onclick = () => {
+            const rowIndex = parseInt(rowEl.dataset.row);
+            socket.emit('row-chosen', { rowIndex });
+            choosingRow = false;
+            tableArea.classList.remove('dimmed');
+            $$('.table-row').forEach(r => {
+              r.classList.remove('selectable', 'highlight-choice');
+              r.onclick = null;
+            });
+            statusText.textContent = 'Resolving...';
+          };
+        });
+      } else {
+        statusText.textContent = `${data.nickname} must choose a row to take...`;
+        statusText.className = 'status-text';
+        tableArea.classList.add('dimmed');
+        // keep the chooser's rows locked out for other players
       }
     }
-
-    // Penalty flash for self
-    if (isMe) {
-      const flash = document.createElement('div');
-      flash.className = 'penalty-flash';
-      flash.textContent = `+${data.penalty} 🌶️`;
-      document.body.appendChild(flash);
-      setTimeout(() => flash.remove(), 1500);
+    else if (data.type === 'turn-end') {
+      if (gameState) {
+        gameState.scores = data.scores;
+        gameState.turn = data.turn;
+      }
+      turnNumber.textContent = data.turn;
+      revealArea.style.display = 'none';
+      revealArea.innerHTML = '';
+      logEvent(`--- Turn ${data.turn - 1} ended ---`);
     }
-  });
-
-  // ── Choose Row ──
-  socket.on('choose-row', (data) => {
-    if (data.playerId === myPlayerId) {
-      choosingRow = true;
-      statusText.textContent = `Your card ${data.card.number} is lower than all rows. Choose a row to take!`;
-      statusText.className = 'status-text highlight';
-
-      // Make rows clickable
-      $$('.table-row').forEach((rowEl) => {
-        rowEl.classList.add('selectable');
-        rowEl.onclick = () => {
-          const rowIndex = parseInt(rowEl.dataset.row);
-          socket.emit('row-chosen', { rowIndex });
-          choosingRow = false;
-          $$('.table-row').forEach(r => {
-            r.classList.remove('selectable');
-            r.onclick = null;
-          });
-          statusText.textContent = 'Resolving...';
-        };
-      });
-    } else {
-      statusText.textContent = `${data.nickname} must choose a row to take...`;
-      statusText.className = 'status-text';
+    else if (data.type === 'round-end') {
+      handleRoundEnd(data);
     }
-  });
-
-  // ── Turn End ──
-  socket.on('turn-end', (data) => {
-    if (gameState) {
-      gameState.scores = data.scores;
-      gameState.turn = data.turn;
+    else if (data.type === 'game-over') {
+      handleGameOver(data);
     }
-    turnNumber.textContent = data.turn;
-    revealArea.style.display = 'none';
-    revealArea.innerHTML = '';
-  });
+  }
 
   // ── Hand Update ──
   socket.on('hand-update', ({ hand }) => {
@@ -772,8 +859,7 @@
     scoreboardOverlay.classList.remove('active');
   }
 
-  // ── Round End (more rounds to go) ──
-  socket.on('round-end', (data) => {
+  function handleRoundEnd(data) {
     if (gameState) {
       gameState.scores = data.scores;
       gameState.state = 'ROUND_END';
@@ -782,7 +868,6 @@
     }
     clearAfterRound(`Round ${data.round} complete!`);
 
-    // Who took the fewest chillis this round?
     const thisRound = data.scores.map(s => ({ ...s, r: s.roundScores[data.round - 1] }));
     const best = Math.min(...thisRound.map(s => s.r));
     const roundWinners = thisRound.filter(s => s.r === best)
@@ -800,10 +885,9 @@
     updateRoundEndActions();
 
     roundendOverlay.classList.add('active');
-  });
+  }
 
-  // ── Game Over (match finished) ──
-  socket.on('game-over', (data) => {
+  function handleGameOver(data) {
     if (gameState) {
       gameState.scores = data.scores;
       gameState.state = 'GAME_OVER';

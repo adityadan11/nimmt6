@@ -113,8 +113,26 @@ io.on('connection', (socket) => {
 
       io.to(room.code).emit('all-cards-revealed', { plays: revealed });
 
-      // Start resolving after a delay to let animations play
-      setTimeout(() => resolveNextCard(room), 1500);
+      // Generate resolution sequence synchronously
+      const events = [];
+      while (true) {
+        const res = room.game.resolveNext();
+        if (!res) break;
+        events.push(res);
+        if (res.type === 'choose-row' || res.type === 'turn-end' || res.type === 'round-end' || res.type === 'game-over') {
+          break;
+        }
+      }
+
+      io.to(room.code).emit('resolution-sequence', { events });
+
+      // If turn ended, send updated hands to each player privately
+      if (events.some(e => e.type === 'turn-end')) {
+        for (const player of room.players) {
+          const state = room.game.getPlayerState(player.id);
+          io.to(player.id).emit('hand-update', { hand: state.hand });
+        }
+      }
     }
   });
 
@@ -126,10 +144,25 @@ io.on('connection', (socket) => {
     const result = room.game.chooseRow(socket.id, rowIndex);
     if (result.error) return socket.emit('error-msg', { message: result.error });
 
-    io.to(room.code).emit('row-taken', result);
+    const events = [result];
+    while (true) {
+      const res = room.game.resolveNext();
+      if (!res) break;
+      events.push(res);
+      if (res.type === 'choose-row' || res.type === 'turn-end' || res.type === 'round-end' || res.type === 'game-over') {
+        break;
+      }
+    }
+    
+    io.to(room.code).emit('resolution-sequence', { events });
 
-    // Continue resolving
-    setTimeout(() => resolveNextCard(room), 1200);
+    // If turn ended, send updated hands to each player privately
+    if (events.some(e => e.type === 'turn-end')) {
+      for (const player of room.players) {
+        const state = room.game.getPlayerState(player.id);
+        io.to(player.id).emit('hand-update', { hand: state.hand });
+      }
+    }
   });
 
   // ── RESTART GAME ──
@@ -204,56 +237,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Resolve card placements one at a time
-function resolveNextCard(room) {
-  if (!room.game) return;
-
-  const result = room.game.resolveNext();
-  if (!result) return;
-
-  if (result.type === 'choose-row') {
-    // Notify all players that someone needs to choose a row
-    io.to(room.code).emit('choose-row', {
-      playerId: result.playerId,
-      nickname: result.nickname,
-      card: result.card,
-    });
-    // The choosing player will emit 'row-chosen' which continues the chain
-    return;
-  }
-
-  if (result.type === 'card-placed') {
-    io.to(room.code).emit('card-placed', result);
-    setTimeout(() => resolveNextCard(room), 800);
-    return;
-  }
-
-  if (result.type === 'row-taken') {
-    io.to(room.code).emit('row-taken', result);
-    setTimeout(() => resolveNextCard(room), 1200);
-    return;
-  }
-
-  if (result.type === 'turn-end') {
-    io.to(room.code).emit('turn-end', result);
-    // Send updated hands
-    for (const player of room.players) {
-      const state = room.game.getPlayerState(player.id);
-      io.to(player.id).emit('hand-update', { hand: state.hand });
-    }
-    return;
-  }
-
-  if (result.type === 'round-end') {
-    io.to(room.code).emit('round-end', result);
-    return;
-  }
-
-  if (result.type === 'game-over') {
-    io.to(room.code).emit('game-over', result);
-    return;
-  }
-}
+// (resolveNextCard function removed since we now use synchronous resolution sequences)
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

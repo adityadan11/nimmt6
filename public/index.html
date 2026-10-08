@@ -87,6 +87,11 @@
       </div>
       <div class="players-status" id="players-status"></div>
       <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <select id="game-speed-select" class="btn btn-secondary btn-small" style="padding: 0.2rem 0.5rem;">
+          <option value="1">Speed: Normal</option>
+          <option value="0.5">Speed: Slow</option>
+          <option value="2">Speed: Fast</option>
+        </select>
         <div class="room-code-small" id="game-room-code">-----</div>
         <button class="scoreboard-toggle" id="btn-scoreboard">📊 Scores</button>
       </div>
@@ -127,10 +132,27 @@
       <button class="btn btn-primary btn-confirm" id="btn-confirm-card">Confirm Card</button>
     </div>
 
+    <!-- Event Log -->
+    <div class="event-log-container">
+      <div class="event-log-header" onclick="document.getElementById('event-log-content').classList.toggle('collapsed')">
+        <span>📜 Event Log</span> <small>(click to toggle)</small>
+      </div>
+      <div class="event-log-content collapsed" id="event-log-content"></div>
+    </div>
+
     <!-- Player hand -->
     <div class="hand-area">
       <div class="hand-label">Your Hand</div>
       <div class="hand-cards" id="hand-cards"></div>
+    </div>
+  </div>
+
+  <!-- ═══ ROW TAKEN POPUP ═══ -->
+  <div class="row-taken-popup" id="row-taken-popup">
+    <div class="popup-content">
+      <div class="popup-header" id="popup-header">Bob took Row 2!</div>
+      <div class="popup-reason" id="popup-reason">Bob played 47 as the 6th card.</div>
+      <div class="popup-penalty" id="popup-penalty">+7 🌶️</div>
     </div>
   </div>
 
