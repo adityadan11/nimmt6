@@ -922,7 +922,7 @@
       btnPlayAgain.textContent = '🔄 Play Again';
       btnBackToLobby.textContent = '🏠 Back to Lobby';
     }
-  });
+  }
 
   // ── Returned to Lobby ──
   socket.on('returned-to-lobby', (roomState) => {
